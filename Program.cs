@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Caching.Memory;
 using MemoryCache cache = new(new MemoryCacheOptions());
 
+const string _PYPI_HOST = "https://pypi.org";
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -13,7 +15,7 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(
         policy =>
         {
-            policy.WithOrigins("https://pypi.org")
+            policy.WithOrigins(_PYPI_HOST)
                 .AllowAnyMethod()
                 .AllowAnyHeader();
         });
@@ -27,9 +29,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-#if !DEBUG
-app.UseHttpsRedirection();
-#endif
+// no redirect to https, because we are using a nginx proxy
+// #if !DEBUG
+// app.UseHttpsRedirection();
+// #endif
 
 app.MapPost("/package/{package_id}", GetDownloadStats).WithName(nameof(GetDownloadStats)).WithOpenApi();
 app.UseCors();
@@ -38,8 +41,6 @@ app.Run();
 
 #region main logic
 
-// ISet<String> _ALLOW_HOSTS = new HashSet<string>() { "pypi.org" };
-
 async Task<DownloadStats?> GetDownloadStats(string package_id, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "referer")] string referrerHeader = "")
 {
     if (string.IsNullOrWhiteSpace(package_id))
@@ -47,7 +48,7 @@ async Task<DownloadStats?> GetDownloadStats(string package_id, [Microsoft.AspNet
         return null;
     }
 #if !DEBUG
-    if (referrerHeader != $"https://pypi.org/project/{package_id}")
+    if (!(referrerHeader?.StartsWith(_PYPI_HOST)))
     {
         return null;
     }

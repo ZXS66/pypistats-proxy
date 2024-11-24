@@ -41,12 +41,12 @@ app.Run();
 
 async Task<DownloadStats?> GetDownloadStats(string package_id, [Microsoft.AspNetCore.Mvc.FromHeader(Name = "referer")] string referrerHeader = "")
 {
-    if (string.IsNullOrWhiteSpace(package_id))
+    if (String.IsNullOrWhiteSpace(package_id))
     {
         return null;
     }
 #if !DEBUG
-    if (!(referrerHeader?.StartsWith(_PYPI_HOST)))
+    if (String.IsNullOrWhiteSpace(referrerHeader) || !referrerHeader.StartsWith(_PYPI_HOST))
     {
         return null;
     }

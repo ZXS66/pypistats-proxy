@@ -55,8 +55,7 @@ async Task<DownloadStats?> GetDownloadStats(string package_id, [Microsoft.AspNet
     {
         return cachedValue;
     }
-    string html = await GetHTMLFromUrl($"https://pypistats.org/packages/{package_id.Trim()}");
-    var ret = ParseHtml(html, package_id);
+    var ret = await queryPyPIStatsAPI(package_id);
     if (ret == null)
     {
         return null;
@@ -65,7 +64,7 @@ async Task<DownloadStats?> GetDownloadStats(string package_id, [Microsoft.AspNet
     return ret;
 };
 
-async Task<string> GetHTMLFromUrl(string url)
+async Task<DownloadStats?> queryPyPIStatsAPI(string package_id)
 {
     int maxRetries = 3;
     for (int i = 0; i < maxRetries; i++)
@@ -73,63 +72,30 @@ async Task<string> GetHTMLFromUrl(string url)
         try
         {
             using var client = new HttpClient();
-            return await client.GetStringAsync(url);
+            var result = await client.GetFromJsonAsync<PypistatsResult>($"https://pypistats.org/api/packages/{package_id.Trim()}/recent");
+            if (result == null || String.IsNullOrWhiteSpace(result.package))
+            {
+                throw new Exception("invalid result from pypistats API");
+            }
+            return new DownloadStats(package_id, result.data.last_day, result.data.last_week, result.data.last_month);
         }
         catch (Exception)
         {
             await Task.Delay(1024);
         }
     }
-    return String.Empty;
+    return null;
 }
-
-DownloadStats? ParseHtml(string html, string package_id)
-{
-    if (string.IsNullOrWhiteSpace(html))
-    {
-        return null;
-    }
-    int downloads_flag = 0;
-    int downloads_lastday = 0, downloads_lastweek = 0, downloads_lastmonth = 0;
-    foreach (string line in html.Split('\n'))
-    {
-        if (line == "Downloads last day:")
-        {
-            downloads_flag = 1;
-            continue;
-        }
-        else if (line == "Downloads last week:")
-        {
-            downloads_flag = 2;
-            continue;
-        }
-        else if (line == "Downloads last month:")
-        {
-            downloads_flag = 3;
-            continue;
-        }
-        if (downloads_flag > 0 && int.TryParse(line.Replace(",", String.Empty), out int downloads))
-        {
-            switch (downloads_flag)
-            {
-                case 1: downloads_lastday = downloads; break;
-                case 2: downloads_lastweek = downloads; break;
-                case 3: downloads_lastmonth = downloads; break;
-            }
-            if (downloads_flag == 3)
-            {
-                break;
-            }
-        }
-    }
-    if (downloads_flag == 0)
-    {
-        // can not find any downloads amount from the page
-        return null;
-    }
-    return new DownloadStats(package_id, downloads_lastday, downloads_lastweek, downloads_lastmonth);
-}
-
+/// <summary>
+/// data structure represents the download stats of a python package
+/// </summary>
+/// <param name="package_id"></param>
+/// <param name="downloads_lastday"></param>
+/// <param name="downloads_lastweek"></param>
+/// <param name="downloads_lastmonth"></param>
 record DownloadStats(string package_id, int downloads_lastday, int downloads_lastweek, int downloads_lastmonth);
+
+record PypistatsResult(PypistatsResultData data, string package, string type);
+record PypistatsResultData(int last_day, int last_week, int last_month);
 
 #endregion

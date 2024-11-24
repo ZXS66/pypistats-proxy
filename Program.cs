@@ -12,13 +12,10 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(
-        policy =>
-        {
-            policy.WithOrigins(_PYPI_HOST)
-                .AllowAnyMethod()
-                .AllowAnyHeader();
-        });
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins(_PYPI_HOST).AllowAnyMethod().AllowAnyHeader();
+    });
 });
 
 var app = builder.Build();
@@ -29,10 +26,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+#if !DEBUG
 // no redirect to https, because we are using a nginx proxy
-// #if !DEBUG
 // app.UseHttpsRedirection();
-// #endif
+builder.WebHost.UseUrls("http://+:8080");
+#endif
 
 app.MapPost("/package/{package_id}", GetDownloadStats).WithName(nameof(GetDownloadStats)).WithOpenApi();
 app.UseCors();
